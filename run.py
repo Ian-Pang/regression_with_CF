@@ -759,9 +759,9 @@ if __name__ == '__main__':
         rec_flow_blocks.append(
             transforms.MaskedPiecewiseRationalQuadraticAutoregressiveTransform(
                 **flow_params_rec_energy))
-        rec_flow_blocks.append(transforms.RandomPermutation(3))
+        rec_flow_blocks.append(transforms.RandomPermutation(6))
     rec_flow_transform = transforms.CompositeTransform(rec_flow_blocks)
-    rec_flow_base_distribution = distributions.StandardNormal(shape=[3])
+    rec_flow_base_distribution = distributions.StandardNormal(shape=[6])
     rec_flow = flows.Flow(transform=rec_flow_transform, distribution=rec_flow_base_distribution)
 
     rec_model = rec_flow.to(args.device)
