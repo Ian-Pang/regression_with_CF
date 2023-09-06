@@ -736,8 +736,8 @@ if __name__ == '__main__':
                                                            normed=False,
                                                            normed_layer=True)
 
-    args.input_size = {'0': 288, '1': 144, '2': 72}
-    args.input_dims = {'0': (3, 96), '1': (12, 12), '2': (12, 6)}
+    args.input_size = {'0': 288, '1': 144, '2': 72, '3': 288, '4': 144, '5': 72}
+    args.input_dims = {'0': (3, 96), '1': (12, 12), '2': (12, 6), '3': (3, 96), '4': (12, 12), '5': (12, 6)}
 
     flow_params_rec_energy = {'num_blocks': 2, #num of layers per block
                               'features': 6,
