@@ -111,7 +111,7 @@ class CaloDataset(Dataset):
             layer_2 = add_noise(layer_2)
             layer_3 = add_noise(layer_3)
             layer_4 = add_noise(layer_4)
-            layer_4 = add_noise(layer_5)
+            layer_5 = add_noise(layer_5)
 
         layer_0_E = layer_0.sum(axis=(-1, -2), keepdims=True)
         layer_1_E = layer_1.sum(axis=(-1, -2), keepdims=True)
@@ -181,8 +181,8 @@ class CaloDataset(Dataset):
                   'layer_4': layer_4, 'layer_5': layer_5, 'energy': energy,
                   'overflow': overflow, 'layer_0_E': layer_0_E.squeeze(),
                   'layer_1_E': layer_1_E.squeeze(), 'layer_2_E': layer_2_E.squeeze(),
-                  'layer_3_E': layer_2_E.squeeze(), 'layer_4_E': layer_2_E.squeeze(),
-                  'layer_5_E': layer_2_E.squeeze()}
+                  'layer_3_E': layer_3_E.squeeze(), 'layer_4_E': layer_4_E.squeeze(),
+                  'layer_5_E': layer_5_E.squeeze()}
         if self.return_label:
             #sample['label'] = self.full_file['label'][idx]
             sample['label'] = self.file_label[idx]
