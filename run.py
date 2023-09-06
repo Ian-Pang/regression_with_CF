@@ -740,7 +740,7 @@ if __name__ == '__main__':
     args.input_dims = {'0': (3, 96), '1': (12, 12), '2': (12, 6)}
 
     flow_params_rec_energy = {'num_blocks': 2, #num of layers per block
-                              'features': 3,
+                              'features': 6,
                               'context_features': 1,
                               'hidden_features': 64,
                               'use_residual_blocks': False,
@@ -827,12 +827,12 @@ if __name__ == '__main__':
 
     # setup flow
     flow_blocks = []
-    for layer_id in range(3):
+    for layer_id in range(6):
         current_dim = args.input_size[str(layer_id)]
         args.dim_split.append(current_dim)
     for entry in args.dim_split:
         args.dim_sum += entry
-    cond_label_size = 4
+    cond_label_size = 7
     for i in range(args.n_blocks):
         flow_blocks.append(
             transforms.MaskedPiecewiseRationalQuadraticAutoregressiveTransform(
