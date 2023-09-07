@@ -764,7 +764,7 @@ if __name__ == '__main__':
 
     # check if parsed arguments are valid
     assert (args.train or args.generate or args.evaluate or args.generate_to_file or \
-            args.save_only_weights or args.evaluate_KL), \
+            args.save_only_weights or args.evaluate_KL or args.analyze), \
             ("Please specify at least one of --train, --generate, --evaluate, --generate_to_file")
 
     # check if output_dir exists and 'move' results file there
