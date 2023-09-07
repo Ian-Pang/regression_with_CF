@@ -582,6 +582,66 @@ def generate_single_with_rec(model, arg, num_pts, energies, rec_model):
 
     return samples
 
+def MLE_analysis(model, arg, rec_model):
+    model.eval()
+    rec_model.eval()
+    analysis_dataloader = get_dataloader(args.particle_type,
+                                        args.data_dir,
+                                        full=True,
+                                        apply_logit=True,
+                                        device=args.device,
+                                        batch_size=1,
+                                        with_noise = True,
+                                        normed=False,
+                                        normed_layer=True)
+
+    e_inc = torch.linspace(0.01,1,1000)
+    e_inc = torch.log10(e_inc*10.).unsqueeze(-1)
+    for batch_id, data in enumerate(analysis_dataloader):
+        x0 = data['layer_0']
+        x1 = data['layer_1']
+        x2 = data['layer_2']
+        x3 = data['layer_3']
+        x4 = data['layer_4']
+        x5 = data['layer_5']
+        E0 = data['layer_0_E']
+        E1 = data['layer_1_E']
+        E2 = data['layer_2_E']
+        E3 = data['layer_3_E']
+        E4 = data['layer_4_E']
+        E5 = data['layer_5_E']
+
+        true_E  = data['energy'] # this is the true incident energy from the dataset
+
+        E0 = torch.log10(E0.unsqueeze(-1)+1e-8) + 2.
+        E1 = torch.log10(E1.unsqueeze(-1)+1e-8) + 2.
+        E2 = torch.log10(E2.unsqueeze(-1)+1e-8) + 2.
+        E3 = torch.log10(E3.unsqueeze(-1)+1e-8) + 2.
+        E4 = torch.log10(E4.unsqueeze(-1)+1e-8) + 2.
+        E5 = torch.log10(E5.unsqueeze(-1)+1e-8) + 2.
+
+        results = true_E
+        for i in range(1000):
+            x = trafo_to_unit_space(torch.cat((E0.unsqueeze(1),
+                                                    E1.unsqueeze(1),
+                                                    E2.unsqueeze(1),
+                                                    E3.unsqueeze(1),
+                                                    E4.unsqueeze(1),
+                                                    E5.unsqueeze(1),
+                                                    e_inc[i]), 1)).to(arg.device)
+            y = torch.log10(e_inc[i]*10.).to(arg.device)
+            x = logit_trafo(x)
+            log_P = rec_model.log_prob(x, y)
+            results = torch.cat([results,log_P])
+        if batch_id == 0:
+            analysis_results = results
+        else:
+            analysis_results = torch.cat([analysis_results, results])
+        
+        if (batch_id+1) %10000 ==0: print('Analyzed {} %% of events'.format(int((batch_id+1)/10000)))
+
+        return analysis_results.detach().numpy()
+
 ################## train and evaluation functions for recursive flow ###############################
 
 def train_rec_flow(rec_model, train_data, test_data, optim, arg):
@@ -887,6 +947,12 @@ if __name__ == '__main__':
             # for nn plots
             #my_energies = torch.tensor(2000*[0.05, 0.1, 0.2, 0.5, 0.95])
             generate_to_file(model, args, rec_model, num_events=100000, energies=None) #my_energies
+
+        if args.analyze:
+            print("performing MLE analysis ...")
+            load_weights(model, args)
+            analysis_results = MLE_analysis(model, args, rec_model)
+            np.savetxt('analysis_results', analysis_results)
 
         if args.save_only_weights:
             print("saving only teacher weights ...")
