@@ -43,6 +43,7 @@ parser = argparse.ArgumentParser()
 # usage modes
 parser.add_argument('--train', action='store_true', help='train a flow')
 parser.add_argument('--generate', action='store_true', help='generate from a trained flow and plot')
+parser.add_argument('--analyze', action='store_true', help='perform MLE analysis')
 parser.add_argument('--evaluate', action='store_true', help='evaluate LL of a trained flow')
 parser.add_argument('--evaluate_KL', action='store_true',
                     help='evaluate KL of a trained student flow')
