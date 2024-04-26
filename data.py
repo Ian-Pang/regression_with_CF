@@ -155,7 +155,7 @@ class CaloDataset(Dataset):
         if self.transform_4:
             if self.transform_4 == 'E_norm':
                 layer_4 = layer_4 / energy
-            elif self.transform_3 == 'L_norm':
+            elif self.transform_4 == 'L_norm':
                 layer_4 = layer_4 / (layer_4_E + 1e-16)
             else:
                 layer_4 = self.transform_4(layer_4)
@@ -163,7 +163,7 @@ class CaloDataset(Dataset):
         if self.transform_5:
             if self.transform_5 == 'E_norm':
                 layer_5 = layer_5 / energy
-            elif self.transform_2 == 'L_norm':
+            elif self.transform_5 == 'L_norm':
                 layer_5 = layer_5 / (layer_5_E + 1e-16)
             else:
                 layer_5 = self.transform_5(layer_5)
@@ -235,7 +235,7 @@ def get_dataloader(particle_type, data_dir, device, full,
         return train_dataloader, test_dataloader
 
 def add_noise(input_tensor):
-    noise = np.random.rand(*input_tensor.shape)*1e-8
+    noise = np.random.rand(*input_tensor.shape)*1e-9
     return input_tensor+noise
 
 def save_samples_to_file(samples, energies, filename, threshold):

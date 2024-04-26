@@ -75,7 +75,7 @@ parser.add_argument('--data_dir', help='Where to find the training dataset')
 # CALO specific
 parser.add_argument('--with_noise', action='store_true', default=True,
                     help='Add 1e-8 noise (w.r.t. 100 GeV) to dataset to avoid voxel with 0 energy')
-parser.add_argument('--particle_type', '-p', choices=['gamma', 'eplus', 'piplus'],
+parser.add_argument('--particle_type', '-p', choices=['gamma', 'eplus', 'piplus', 'piplus_high', 'piplus_log'],
                     help='Which particle to shower, "gamma", "eplus", or "piplus"')
 parser.add_argument('--threshold', type=float, default=0.01,
                     help='Threshold in MeV below which voxel energies are set to 0. in plots.')
@@ -87,7 +87,7 @@ parser.add_argument('--n_blocks', type=int, default=8,
                     help='Total number of blocks to stack in a model (MADE in MAF).')
 parser.add_argument('--student_n_blocks', type=int, default=8,
                     help='Total number of blocks to stack in the student model (MADE in IAF).')
-parser.add_argument('--hidden_size', type=int, default=378,
+parser.add_argument('--hidden_size', type=int, default=512,
                     help='Hidden layer size for each MADE block in an MAF.')
 parser.add_argument('--student_hidden_size', type=int, default=504,
                     help='Hidden layer size for each MADE block in the student IAF.')
@@ -107,7 +107,7 @@ parser.add_argument('--beta', type=float, default=0.5,
 
 # training params
 parser.add_argument('--batch_size', type=int, default=200)
-parser.add_argument('--n_epochs', type=int, default=100)
+parser.add_argument('--n_epochs', type=int, default=200)
 parser.add_argument('--lr', type=float, default=1e-4, help='Initial Learning rate.')
 parser.add_argument('--log_interval', type=int, default=175,
                     help='How often to show loss statistics.')
@@ -285,7 +285,7 @@ def generate_to_file(model, arg, rec_model, num_events=100000, energies=None):
 def train_and_evaluate(model, train_loader, test_loader, optimizer, arg, rec_model):
     """ As the name says, train the flow and evaluate along the way """
     best_eval_logprob = float('-inf')
-    milestones = [50]
+    milestones = [50,150]
     lr_schedule = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                        milestones=milestones,
                                                        gamma=0.5,
@@ -308,7 +308,7 @@ def save_all(model, optimizer, arg, is_student=False):
                                  f"saved_checkpoints/Flow_II/{arg.particle_type}_full_student.pt")
     else:
         file_name = os.path.join(arg.output_dir,
-                                 f"saved_checkpoints/Flow_II/{arg.particle_type}_full.pt")
+                                 f"saved_checkpoints/Flow_II/{arg.particle_type}_full_sep19.pt")
     torch.save({'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()}, file_name)
     #          os.path.join(arg.output_dir,
@@ -369,7 +369,7 @@ def load_weights(model, arg, is_student=False):
 def save_rec_flow(rec_model, arg):
     """saves flow that learns energies recursively (Flow I)"""
     torch.save({'model_state_dict': rec_model.state_dict()},
-               os.path.join(arg.output_dir, f"saved_checkpoints/Flow_I/{arg.particle_type}.pt"))
+               os.path.join(arg.output_dir, f"saved_checkpoints/Flow_I/{arg.particle_type}_sep19.pt"))
                #os.path.join(arg.output_dir, arg.particle_type+'_rec.pt'))
                #os.path.join('./rec_energy_flow/', arg.particle_type+'.pt'))
 
@@ -378,7 +378,7 @@ def load_rec_flow(rec_model, arg):
     #checkpoint = torch.load(os.path.join('./rec_energy_flow/', arg.particle_type+'.pt'),
     #checkpoint = torch.load(os.path.join(arg.output_dir, arg.particle_type+'_rec.pt'),
     if arg.flowI_restore_file is None:
-        filename = os.path.join(arg.output_dir, f"saved_checkpoints/Flow_I/{arg.particle_type}.pt")
+        filename = os.path.join(arg.output_dir, f"saved_checkpoints/Flow_I/{arg.particle_type}_sep19.pt")
     else:
         filename = arg.flowI_restore_file
     checkpoint = torch.load(filename, map_location='cpu')
@@ -583,6 +583,18 @@ def generate_single_with_rec(model, arg, num_pts, energies, rec_model):
 
     return samples
 
+@torch.no_grad()
+def generate_layerE(model, arg, num_pts, energies, rec_model):
+    """ Generate Samples of layer E """
+    model.eval()
+
+    energy_dist_unit = sample_rec_flow(rec_model, num_pts, arg, energies).to('cpu')
+    if arg.log_preprocess:
+        energy_dist = (10**(0.5*energy_dist_unit + 1) - 1e-8)/1e3
+    else:
+        energy_dist = trafo_to_energy_space(energy_dist_unit, energies)
+    return energy_dist
+
 def MLE_analysis(model, arg, rec_model):
     model.eval()
     rec_model.eval()
@@ -614,34 +626,46 @@ def MLE_analysis(model, arg, rec_model):
 
         true_E  = data['energy'] # this is the true incident energy from the dataset
 
-        E0 = torch.log10(E0.unsqueeze(-1)+1e-8) + 2.
-        E1 = torch.log10(E1.unsqueeze(-1)+1e-8) + 2.
-        E2 = torch.log10(E2.unsqueeze(-1)+1e-8) + 2.
-        E3 = torch.log10(E3.unsqueeze(-1)+1e-8) + 2.
-        E4 = torch.log10(E4.unsqueeze(-1)+1e-8) + 2.
-        E5 = torch.log10(E5.unsqueeze(-1)+1e-8) + 2.
-
-        results = true_E
+        #print(E0.shape, E1.shape, E2.shape, E3.shape, E4.shape, E5.shape, e_inc[0].unsqueeze(0).shape)
+        #print(E0, E1, E2, E3, E4, E5, e_inc[0].unsqueeze(0))
+        results = true_E.squeeze(0).to(arg.device)
+        print(E0,E1,E2,E3,E4,E5,true_E)
+        x = trafo_to_unit_space(torch.cat((E0.unsqueeze(1),
+                                               E1.unsqueeze(1),
+                                               E2.unsqueeze(1),
+                                               E3.unsqueeze(1),
+                                               E4.unsqueeze(1),
+                                               E5.unsqueeze(1),
+                                               true_E), 1)).to(arg.device)
+        y = torch.log10(true_E*10.).to(arg.device)
+        x = logit_trafo(x)
+        true_log_P = rec_model.log_prob(x, y).squeeze()
+        print(true_log_P)
         for i in range(1000):
-            x = trafo_to_unit_space(torch.cat((E0.unsqueeze(1),
-                                                    E1.unsqueeze(1),
-                                                    E2.unsqueeze(1),
-                                                    E3.unsqueeze(1),
-                                                    E4.unsqueeze(1),
-                                                    E5.unsqueeze(1),
-                                                    e_inc[i]), 1)).to(arg.device)
+            x = trafo_to_unit_space(torch.cat((E0.unsqueeze(-1),
+                                               E1.unsqueeze(-1),
+                                               E2.unsqueeze(-1),
+                                               E3.unsqueeze(-1),
+                                               E4.unsqueeze(-1),
+                                               E5.unsqueeze(-1),
+                                               e_inc[i].unsqueeze(0)), 1)).to(arg.device)
             y = torch.log10(e_inc[i]*10.).to(arg.device)
             x = logit_trafo(x)
-            log_P = rec_model.log_prob(x, y)
+            log_P = rec_model.log_prob(x, y).squeeze()
+            if torch.isnan(log_P): log_P = -500000*torch.ones(1).to(arg.device)
+            else: log_P = log_P.unsqueeze(0)
+            #print(i , log_P, log_P.shape, results.shape)
             results = torch.cat([results,log_P])
         if batch_id == 0:
             analysis_results = results
+            #print(analysis_results.shape)
         else:
-            analysis_results = torch.cat([analysis_results, results])
-        
+            analysis_results = torch.cat([analysis_results, results],-1)
+            print(analysis_results.shape)
+            
         if (batch_id+1) %10000 ==0: print('Analyzed {} %% of events'.format(int((batch_id+1)/10000)))
 
-        return analysis_results.detach().numpy()
+        if batch_id == 6: return analysis_results.detach().cpu().numpy()
 
 ################## train and evaluation functions for recursive flow ###############################
 
@@ -650,11 +674,11 @@ def train_rec_flow(rec_model, train_data, test_data, optim, arg):
     best_eval_logprob_rec = float('-inf')
 
     lr_schedule = torch.optim.lr_scheduler.MultiStepLR(optim,
-                                                       milestones=[5, 15, 40, 60],
+                                                       milestones=[5, 15, 40, 60, 120],
                                                        gamma=0.5,
                                                        verbose=True)
 
-    num_epochs = 75
+    num_epochs = 150
     for epoch in range(num_epochs):
         rec_model.train()
         for i, data in enumerate(train_data):
@@ -685,7 +709,7 @@ def train_rec_flow(rec_model, train_data, test_data, optim, arg):
                                                    E), 1)).to(arg.device)
                 x = logit_trafo(x)
             loss = - rec_model.log_prob(x, y).mean(0)
-
+            #print(rec_model.log_prob(x, y))
             optim.zero_grad()
             loss.backward()
             optim.step()
@@ -840,7 +864,7 @@ if __name__ == '__main__':
     #if os.path.exists(os.path.join(args.output_dir, args.particle_type+'_rec.pt')):
     if args.flowI_restore_file is None:
         flowI_file = os.path.join(args.output_dir,
-                                  f"saved_checkpoints/Flow_I/{args.particle_type}.pt")
+                                  f"saved_checkpoints/Flow_I/{args.particle_type}_sep19.pt")
     else:
         flowI_file = args.flowI_restore_file
     if os.path.exists(flowI_file):
@@ -953,7 +977,7 @@ if __name__ == '__main__':
             print("performing MLE analysis ...")
             load_weights(model, args)
             analysis_results = MLE_analysis(model, args, rec_model)
-            np.savetxt('analysis_results', analysis_results)
+            np.savetxt('analysis_results.txt', analysis_results)
 
         if args.save_only_weights:
             print("saving only teacher weights ...")
